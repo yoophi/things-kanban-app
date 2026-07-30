@@ -16,12 +16,17 @@ pub enum BoardSort {
 #[serde(rename_all = "camelCase", default)]
 pub struct BoardQuery {
     pub search: String,
-    pub project_ids: Vec<ThingsId>,
-    pub area_ids: Vec<ThingsId>,
     pub tag_names: Vec<String>,
     pub sort: BoardSort,
-    pub show_done: bool,
     pub completed_since: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionWindow {
+    pub days: u16,
+    pub since: DateTime<Utc>,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +56,7 @@ pub struct BoardSnapshot {
     pub projects: Vec<ProjectRef>,
     pub areas: Vec<AreaRef>,
     pub tags: Vec<TagRef>,
+    pub completion_window: CompletionWindow,
     pub refreshed_at: DateTime<Utc>,
 }
 

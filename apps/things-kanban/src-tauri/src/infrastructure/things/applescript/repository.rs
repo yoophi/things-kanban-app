@@ -1,11 +1,11 @@
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use crate::domain::{
     error::IntegrationError,
     model::{
-        AreaRef, BoardQuery, BoardSnapshot, CompletionStatus, KanbanStatus, ProjectRef, TagRef,
-        ThingsId, Todo,
+        AreaRef, BoardQuery, BoardSnapshot, CompletionStatus, CompletionWindow, KanbanStatus,
+        ProjectRef, TagRef, ThingsId, Todo,
     },
     ports::{ItemKind, ThingsRepository},
 };
@@ -19,7 +19,22 @@ fn read_script(id_filter: Option<&ThingsId>) -> String {
         .map(|id| format!(" whose id is \"{}\"", apple_string(id.as_str())))
         .unwrap_or_default();
     format!(
-        r#"set oldDelimiters to AppleScript's text item delimiters
+        r#"on pad2(value)
+  set valueText to value as text
+  if (count valueText) is 1 then return "0" & valueText
+  return valueText
+end pad2
+on isoDate(value)
+  if value is missing value then return ""
+  set y to year of value as integer
+  set m to month of value as integer
+  set d to day of value as integer
+  set h to hours of value as integer
+  set n to minutes of value as integer
+  set s to seconds of value as integer
+  return (y as text) & "-" & pad2(m) & "-" & pad2(d) & "T" & pad2(h) & ":" & pad2(n) & ":" & pad2(s) & "Z"
+end isoDate
+set oldDelimiters to AppleScript's text item delimiters
 set AppleScript's text item delimiters to ASCII character 31
 tell application "Things3"
   set outputRows to {{}}
@@ -29,6 +44,7 @@ tell application "Things3"
     set projectName to ""
     set areaId to ""
     set areaName to ""
+    set completionDateText to ""
     try
       set projectRef to project of itemRef
       set projectId to id of projectRef
@@ -39,7 +55,10 @@ tell application "Things3"
       set areaId to id of areaRef
       set areaName to name of areaRef
     end try
-    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef) & (ASCII character 30) & itemStatus & (ASCII character 30) & (tag names of itemRef) & (ASCII character 30) & projectId & (ASCII character 30) & projectName & (ASCII character 30) & areaId & (ASCII character 30) & areaName
+    try
+      set completionDateText to my isoDate(completion date of itemRef)
+    end try
+    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef) & (ASCII character 30) & itemStatus & (ASCII character 30) & (tag names of itemRef) & (ASCII character 30) & projectId & (ASCII character 30) & projectName & (ASCII character 30) & areaId & (ASCII character 30) & areaName & (ASCII character 30) & completionDateText
   end repeat
 end tell
 set joined to outputRows as text
@@ -53,7 +72,7 @@ fn parse_todos(output: &str) -> Vec<Todo> {
         .split('\u{1f}')
         .filter_map(|row| {
             let fields: Vec<&str> = row.split('\u{1e}').collect();
-            if fields.len() < 8 {
+            if fields.len() < 9 {
                 return None;
             }
             let id = ThingsId::new(fields[0])?;
@@ -66,6 +85,7 @@ fn parse_todos(output: &str) -> Vec<Todo> {
             let area = ThingsId::new(fields[6]).map(|id| AreaRef {
                 id,
                 name: fields[7].to_string(),
+                active: true,
             });
             Some(Todo {
                 id,
@@ -77,7 +97,9 @@ fn parse_todos(output: &str) -> Vec<Todo> {
                 },
                 due_date: None,
                 scheduled_date: None,
-                completion_date: None,
+                completion_date: chrono::DateTime::parse_from_rfc3339(fields[8])
+                    .ok()
+                    .map(|date| date.with_timezone(&Utc)),
                 project,
                 area,
                 tags: fields[3]
@@ -95,22 +117,106 @@ fn parse_todos(output: &str) -> Vec<Todo> {
         .collect()
 }
 
+fn collection_script(kind: &str) -> String {
+    if kind == "areas" {
+        return r#"set oldDelimiters to AppleScript's text item delimiters
+set AppleScript's text item delimiters to ASCII character 31
+tell application "Things3"
+  set outputRows to {}
+  repeat with itemRef in areas
+    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef)
+  end repeat
+end tell
+set joined to outputRows as text
+set AppleScript's text item delimiters to oldDelimiters
+return joined"#
+            .into();
+    }
+    r#"set oldDelimiters to AppleScript's text item delimiters
+set AppleScript's text item delimiters to ASCII character 31
+tell application "Things3"
+  set outputRows to {}
+  repeat with itemRef in projects
+    set areaId to ""
+    set areaName to ""
+    try
+      set areaRef to area of itemRef
+      set areaId to id of areaRef
+      set areaName to name of areaRef
+    end try
+    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef) & (ASCII character 30) & areaId & (ASCII character 30) & areaName
+  end repeat
+end tell
+set joined to outputRows as text
+set AppleScript's text item delimiters to oldDelimiters
+return joined"#
+        .into()
+}
+
+fn parse_areas(output: &str) -> Vec<AreaRef> {
+    output
+        .split('\u{1f}')
+        .filter_map(|row| {
+            let fields: Vec<&str> = row.split('\u{1e}').collect();
+            Some(AreaRef {
+                id: ThingsId::new(*fields.first()?)?,
+                name: (*fields.get(1)?).into(),
+                active: true,
+            })
+        })
+        .collect()
+}
+
+fn parse_projects(output: &str) -> Vec<ProjectRef> {
+    output
+        .split('\u{1f}')
+        .filter_map(|row| {
+            let fields: Vec<&str> = row.split('\u{1e}').collect();
+            Some(ProjectRef {
+                id: ThingsId::new(*fields.first()?)?,
+                name: (*fields.get(1)?).into(),
+                area: ThingsId::new(*fields.get(2)?).map(|id| AreaRef {
+                    id,
+                    name: fields.get(3).unwrap_or(&"").to_string(),
+                    active: true,
+                }),
+                active: true,
+            })
+        })
+        .collect()
+}
+
 #[async_trait]
 impl ThingsRepository for AppleScriptThingsRepository {
     async fn fetch_board(&self, query: &BoardQuery) -> Result<BoardSnapshot, IntegrationError> {
         let mut todos = parse_todos(&run(&read_script(None), false).await?);
+        let since = query
+            .completed_since
+            .unwrap_or_else(|| Utc::now() - Duration::days(30));
         todos.retain(|todo| {
             todo.completion_status != CompletionStatus::Canceled
-                && (query.show_done || todo.completion_status != CompletionStatus::Completed)
+                && (todo.completion_status != CompletionStatus::Completed
+                    || todo.completion_date.is_none_or(|date| date >= since))
         });
-        let projects = todos.iter().filter_map(|todo| todo.project.clone()).collect();
-        let areas = todos.iter().filter_map(|todo| todo.area.clone()).collect();
-        let tags = todos.iter().flat_map(|todo| todo.tags.clone()).collect();
+        let mut projects = parse_projects(&run(&collection_script("projects"), false).await?);
+        projects.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+        projects.dedup_by(|a, b| a.id == b.id);
+        let mut areas = parse_areas(&run(&collection_script("areas"), false).await?);
+        areas.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+        areas.dedup_by(|a, b| a.id == b.id);
+        let mut tags: Vec<TagRef> = todos.iter().flat_map(|todo| todo.tags.clone()).collect();
+        tags.sort_by(|a, b| a.name.cmp(&b.name));
+        tags.dedup_by(|a, b| a.name == b.name);
         Ok(BoardSnapshot {
             todos: todos.into_iter().map(Into::into).collect(),
             projects,
             areas,
             tags,
+            completion_window: CompletionWindow {
+                days: 30,
+                since,
+                label: "최근 30일".into(),
+            },
             refreshed_at: Utc::now(),
         })
     }
@@ -168,11 +274,7 @@ end tell"#,
         self.fetch_todo(id).await
     }
 
-    async fn show_item(
-        &self,
-        id: &ThingsId,
-        kind: ItemKind,
-    ) -> Result<(), IntegrationError> {
+    async fn show_item(&self, id: &ThingsId, kind: ItemKind) -> Result<(), IntegrationError> {
         let class_name = match kind {
             ItemKind::Todo => "to do",
             ItemKind::Project => "project",
@@ -192,10 +294,35 @@ mod tests {
 
     #[test]
     fn parses_public_text_ids_and_preserves_tags() {
-        let output = "abc\u{1e}Task\u{1e}open\u{1e}Home, status:in-progress\u{1e}p1\u{1e}Project\u{1e}a1\u{1e}Area";
+        let output = "abc\u{1e}Task\u{1e}open\u{1e}Home, status:in-progress\u{1e}p1\u{1e}Project\u{1e}a1\u{1e}Area\u{1e}";
         let todos = parse_todos(output);
         assert_eq!(todos[0].id.as_str(), "abc");
         assert_eq!(todos[0].tags.len(), 2);
         assert_eq!(todos[0].status().status, KanbanStatus::InProgress);
+    }
+
+    #[test]
+    fn parses_iso_completion_date_and_active_collections() {
+        let output = "abc\u{1e}Done\u{1e}completed\u{1e}\u{1e}\u{1e}\u{1e}a1\u{1e}Area\u{1e}2026-07-29T03:00:00Z";
+        let todos = parse_todos(output);
+        assert!(todos[0].completion_date.is_some());
+        assert!(parse_areas("a1\u{1e}Area")[0].active);
+        assert_eq!(
+            parse_projects("p1\u{1e}Project\u{1e}a1\u{1e}Area")[0]
+                .area
+                .as_ref()
+                .unwrap()
+                .id
+                .as_str(),
+            "a1"
+        );
+    }
+
+    #[test]
+    fn read_contract_uses_public_collections_and_iso_dates() {
+        let script = read_script(None);
+        assert!(script.contains("completion date of itemRef"));
+        assert!(collection_script("areas").contains("repeat with itemRef in areas"));
+        assert!(collection_script("projects").contains("repeat with itemRef in projects"));
     }
 }

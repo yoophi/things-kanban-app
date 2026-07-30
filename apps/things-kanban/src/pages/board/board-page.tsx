@@ -14,6 +14,8 @@ import { StatusAnnouncer } from "@/features/move-todo/ui/status-announcer";
 import { useOpenInThings } from "@/features/open-in-things/use-open-in-things";
 import { useFocusRefresh } from "@/features/refresh-board/model/use-focus-refresh";
 import { RefreshButton } from "@/features/refresh-board/ui/refresh-button";
+import { BoardSidebar, useBoardScope } from "@/features/select-board-scope";
+import { scopeLabel } from "@/entities/board/model/select-board";
 import type { KanbanStatus, Todo } from "@/shared/api/contracts";
 
 const columnLabels: Record<KanbanStatus, string> = {
@@ -24,7 +26,8 @@ const columnLabels: Record<KanbanStatus, string> = {
 
 export function BoardPage() {
   const filters = useBoardFilters();
-  const board = useBoardQuery(filters.query.showDone);
+  const board = useBoardQuery();
+  const navigation = useBoardScope(board.data);
   const transition = useTransitionTodo();
   const open = useOpenInThings();
   const queryClient = useQueryClient();
@@ -32,8 +35,11 @@ export function BoardPage() {
   useFocusRefresh();
 
   const snapshot = useMemo(
-    () => (board.data ? selectBoard(board.data, filters.query) : undefined),
-    [board.data, filters.query],
+    () =>
+      board.data
+        ? selectBoard(board.data, filters.query, navigation.scope)
+        : undefined,
+    [board.data, filters.query, navigation.scope],
   );
   const counts = boardCounts(snapshot?.todos ?? []);
 
@@ -50,7 +56,9 @@ export function BoardPage() {
             `${todo.title}이 ${columnLabels[targetStatus]}로 이동했습니다.`,
           ),
         onError: () =>
-          setAnnouncement(`${todo.title} 이동에 실패해 이전 상태로 복구했습니다.`),
+          setAnnouncement(
+            `${todo.title} 이동에 실패해 이전 상태로 복구했습니다.`,
+          ),
       },
     );
   };
@@ -63,7 +71,10 @@ export function BoardPage() {
         <CircleCheckBig aria-hidden />
         <h1>Things에 연결할 수 없습니다</h1>
         <p>Things 실행 상태와 macOS 자동화 권한을 확인한 뒤 다시 시도하세요.</p>
-        <RefreshButton pending={board.isFetching} onRefresh={() => void board.refetch()} />
+        <RefreshButton
+          pending={board.isFetching}
+          onRefresh={() => void board.refetch()}
+        />
       </main>
     );
   }
@@ -72,7 +83,9 @@ export function BoardPage() {
     <main className="app-shell">
       <header className="app-header">
         <div className="brand">
-          <span className="app-icon"><Columns3 aria-hidden /></span>
+          <span className="app-icon">
+            <Columns3 aria-hidden />
+          </span>
           <div>
             <p>THINGS WORKSPACE</p>
             <h1>Kanban</h1>
@@ -86,61 +99,65 @@ export function BoardPage() {
         />
       </header>
       <BoardFilters
-        snapshot={board.data}
         query={filters.query}
         onChange={filters.patch}
         onClear={filters.clear}
       />
-      {!snapshot.todos.length ? (
-        <section className="empty-state">
-          <h2>조건에 맞는 할 일이 없습니다</h2>
-          <p>검색이나 필터를 초기화해 다시 확인하세요.</p>
-          <button className="primary" type="button" onClick={filters.clear}>
-            필터 초기화
-          </button>
-        </section>
-      ) : (
-        <DragDropProvider
-          onDragEnd={({ operation, canceled }) => {
-            if (canceled || !operation.source || !operation.target) return;
-            const todoId = String(operation.source.id).replace(/^todo:/, "");
-            const targetStatus = String(operation.target.id).replace(
-              /^column:/,
-              "",
-            ) as KanbanStatus;
-            const todo = snapshot.todos.find((item) => item.id === todoId);
-            if (todo && targetStatus in columnLabels) move(todo, targetStatus);
-          }}
+      <div className="workspace">
+        <BoardSidebar
+          snapshot={board.data}
+          scope={navigation.scope}
+          collapsed={navigation.collapsed}
+          onSelect={navigation.setScope}
+          onToggleCollapsed={navigation.toggleCollapsed}
+        />
+        <section
+          className="board-region"
+          aria-label={`${scopeLabel(board.data, navigation.scope)} 칸반 보드`}
         >
-        <div className={`board ${filters.query.showDone ? "three" : "two"}`}>
-          {(["todo", "inProgress"] as const).map((status) => (
-            <BoardColumn
-              key={status}
-              title={columnLabels[status]}
-              status={status}
-              todos={snapshot.todos.filter((todo) => todo.status === status)}
-              pendingId={transition.variables?.todo.id}
-              onMove={move}
-              onOpen={(todo) => open.mutate({ id: todo.id, kind: "todo" })}
-            />
-          ))}
-          {filters.query.showDone && (
-            <BoardColumn
-              title={`${columnLabels.done} · 최근 30일`}
-              status="done"
-              todos={snapshot.todos.filter((todo) => todo.status === "done")}
-              pendingId={transition.variables?.todo.id}
-              onMove={move}
-              onOpen={(todo) => open.mutate({ id: todo.id, kind: "todo" })}
-            />
-          )}
-        </div>
-        </DragDropProvider>
-      )}
+          <header className="scope-header">
+            <p>현재 범위</p>
+            <h2>{scopeLabel(board.data, navigation.scope)}</h2>
+          </header>
+          <DragDropProvider
+            onDragEnd={({ operation, canceled }) => {
+              if (canceled || !operation.source || !operation.target) return;
+              const todoId = String(operation.source.id).replace(/^todo:/, "");
+              const targetStatus = String(operation.target.id).replace(
+                /^column:/,
+                "",
+              ) as KanbanStatus;
+              const todo = snapshot.todos.find((item) => item.id === todoId);
+              if (todo && targetStatus in columnLabels)
+                move(todo, targetStatus);
+            }}
+          >
+            <div className="board three">
+              {(["todo", "inProgress", "done"] as const).map((status) => (
+                <BoardColumn
+                  key={status}
+                  title={
+                    status === "done"
+                      ? `${columnLabels.done} · 최근 30일`
+                      : columnLabels[status]
+                  }
+                  status={status}
+                  todos={snapshot.todos.filter(
+                    (todo) => todo.status === status,
+                  )}
+                  pendingId={transition.variables?.todo.id}
+                  onMove={move}
+                  onOpen={(todo) => open.mutate({ id: todo.id, kind: "todo" })}
+                />
+              ))}
+            </div>
+          </DragDropProvider>
+        </section>
+      </div>
       <footer className="status-bar">
         <span>To Do {counts.todo}</span>
         <span>In Progress {counts.inProgress}</span>
-        {filters.query.showDone && <span>Done {counts.done}</span>}
+        <span>Done {counts.done}</span>
         <time dateTime={snapshot.refreshedAt}>
           {new Date(snapshot.refreshedAt).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
@@ -150,6 +167,7 @@ export function BoardPage() {
         </time>
       </footer>
       <StatusAnnouncer message={announcement} />
+      <StatusAnnouncer message={navigation.announcement} />
     </main>
   );
 }

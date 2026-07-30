@@ -3,11 +3,8 @@ import type { BoardQuery } from "@/shared/api/contracts";
 
 const initial: BoardQuery = {
   search: "",
-  projectIds: [],
-  areaIds: [],
   tagNames: [],
   sort: "dueDate",
-  showDone: false,
 };
 
 export function useBoardFilters() {

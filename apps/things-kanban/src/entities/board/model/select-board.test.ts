@@ -4,21 +4,29 @@ import { boardCounts, selectBoard } from "./select-board";
 
 const query = {
   search: "",
-  projectIds: [],
-  areaIds: [],
   tagNames: [],
   sort: "dueDate" as const,
-  showDone: false,
 };
 
 describe("selectBoard", () => {
-  it("combines normalized search and project filters", () => {
-    const selected = selectBoard(boardFixture, {
-      ...query,
-      search: "구조",
-      projectIds: ["project"],
-    });
+  it("combines normalized search and project scope", () => {
+    const selected = selectBoard(
+      boardFixture,
+      {
+        ...query,
+        search: "구조",
+      },
+      { kind: "project", id: "project" },
+    );
     expect(selected.todos.map((todo) => todo.id)).toEqual(["one"]);
+  });
+
+  it("includes direct and child project todos in an area scope", () => {
+    expect(
+      selectBoard(boardFixture, query, { kind: "area", id: "work" }).todos.map(
+        (todo) => todo.id,
+      ),
+    ).toEqual(["one", "two", "done"]);
   });
 
   it("sorts titles and derives counts", () => {

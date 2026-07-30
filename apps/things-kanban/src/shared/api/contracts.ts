@@ -22,8 +22,12 @@ export interface ItemRef {
   name: string;
 }
 
+export interface AreaRef extends ItemRef {
+  active: boolean;
+}
+
 export interface ProjectRef extends ItemRef {
-  area?: ItemRef;
+  area?: AreaRef;
   active: boolean;
 }
 
@@ -40,7 +44,7 @@ export interface Todo {
   scheduledDate?: string;
   completionDate?: string;
   project?: ProjectRef;
-  area?: ItemRef;
+  area?: AreaRef;
   tags: TagRef[];
   modifiedAt?: string;
   status: KanbanStatus;
@@ -49,19 +53,23 @@ export interface Todo {
 
 export interface BoardQuery {
   search: string;
-  projectIds: string[];
-  areaIds: string[];
   tagNames: string[];
   sort: "dueDate" | "scheduledDate" | "title";
-  showDone: boolean;
   completedSince?: string;
+}
+
+export interface CompletionWindow {
+  days: number;
+  since: string;
+  label: string;
 }
 
 export interface BoardSnapshot {
   todos: Todo[];
   projects: ProjectRef[];
-  areas: ItemRef[];
+  areas: AreaRef[];
   tags: TagRef[];
+  completionWindow: CompletionWindow;
   refreshedAt: string;
 }
 

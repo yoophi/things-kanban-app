@@ -26,9 +26,5 @@ pub trait ThingsRepository: Send + Sync {
         id: &ThingsId,
         completed: bool,
     ) -> Result<Todo, IntegrationError>;
-    async fn show_item(
-        &self,
-        id: &ThingsId,
-        kind: ItemKind,
-    ) -> Result<(), IntegrationError>;
+    async fn show_item(&self, id: &ThingsId, kind: ItemKind) -> Result<(), IntegrationError>;
 }

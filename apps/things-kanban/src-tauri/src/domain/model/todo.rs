@@ -21,6 +21,7 @@ impl ThingsId {
 pub struct AreaRef {
     pub id: ThingsId,
     pub name: String,
+    pub active: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

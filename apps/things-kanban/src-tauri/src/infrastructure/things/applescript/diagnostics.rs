@@ -12,7 +12,12 @@ pub async fn status() -> IntegrationStatus {
             write_available: false,
         };
     }
-    match runner::run("tell application \"Things3\" to return id of first to do", false).await {
+    match runner::run(
+        "tell application \"Things3\" to return id of first to do",
+        false,
+    )
+    .await
+    {
         Ok(_) => IntegrationStatus {
             things_installed: true,
             automation: "authorized",

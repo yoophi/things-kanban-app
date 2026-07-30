@@ -42,7 +42,9 @@ export function BoardColumn({
             onOpen={() => onOpen(todo)}
           />
         ))}
-        {!todos.length && <p className="column-empty">이 열에는 할 일이 없습니다.</p>}
+        {!todos.length && (
+          <p className="column-empty">이 열에는 할 일이 없습니다.</p>
+        )}
       </div>
     </section>
   );

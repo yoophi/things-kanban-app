@@ -10,7 +10,10 @@ pub async fn run(script: &str, write: bool) -> Result<String, IntegrationError> 
     }
     let output = timeout(
         Duration::from_secs(8),
-        Command::new("/usr/bin/osascript").arg("-e").arg(script).output(),
+        Command::new("/usr/bin/osascript")
+            .arg("-e")
+            .arg(script)
+            .output(),
     )
     .await
     .map_err(|_| IntegrationError::ThingsUnavailable)?
