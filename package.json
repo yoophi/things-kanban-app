@@ -1,0 +1,20 @@
+{
+  "name": "things-kanban-app",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "scripts": {
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "storybook:test": "pnpm --filter things-kanban test:storybook",
+    "tauri:build": "pnpm --filter things-kanban tauri build",
+    "tauri:dev": "pnpm --filter things-kanban tauri dev",
+    "test:e2e": "pnpm --filter things-kanban test:e2e"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.6",
+    "typescript": "^5.8.3"
+  }
+}
