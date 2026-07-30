@@ -91,3 +91,16 @@ pub async fn open_in_things(
         .map_err(CommandError::from)?;
     Ok(OpenResponse { opened: true })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::domain::error::{CommandError, IntegrationError};
+
+    #[test]
+    fn transition_verification_failure_keeps_safe_command_contract() {
+        let error = CommandError::from(IntegrationError::VerificationFailed);
+        assert_eq!(error.code, "verification_failed");
+        assert!(error.retryable);
+        assert!(!error.message.contains("todo"));
+    }
+}

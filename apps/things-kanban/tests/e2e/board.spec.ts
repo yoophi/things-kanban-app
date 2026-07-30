@@ -16,4 +16,11 @@ test("loads, filters, and moves a card with the keyboard equivalent", async ({
   await expect(
     page.getByRole("heading", { name: "앱 구조 검토" }),
   ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "상태 이동" })
+    .first()
+    .selectOption("done");
+  await expect(
+    page.getByRole("heading", { name: "앱 구조 검토" }),
+  ).toBeVisible();
 });
