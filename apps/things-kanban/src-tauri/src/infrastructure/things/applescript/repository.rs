@@ -42,9 +42,15 @@ fn normalized_status_tags(todo: &Todo, target: KanbanStatus) -> Vec<String> {
 }
 
 fn read_script(id_filter: Option<&ThingsId>) -> String {
-    let filter = id_filter
-        .map(|id| format!(" whose id is \"{}\"", apple_string(id.as_str())))
-        .unwrap_or_default();
+    let source_todos = id_filter.map_or_else(
+        || r#"(to dos) & (to dos of list "Logbook")"#.to_string(),
+        |id| {
+            let id = apple_string(id.as_str());
+            format!(
+                r#"(to dos whose id is "{id}") & (to dos of list "Logbook" whose id is "{id}")"#
+            )
+        },
+    );
     format!(
         r#"on pad2(value)
   set valueText to value as text
@@ -65,7 +71,8 @@ set oldDelimiters to AppleScript's text item delimiters
 set AppleScript's text item delimiters to ASCII character 31
 tell application "Things3"
   set outputRows to {{}}
-  repeat with itemRef in (to dos{filter})
+  set sourceTodos to {source_todos}
+  repeat with itemRef in sourceTodos
     set itemStatus to status of itemRef as text
     set projectId to ""
     set projectName to ""
@@ -340,6 +347,7 @@ mod tests {
     fn read_contract_uses_public_collections_and_iso_dates() {
         let script = read_script(None);
         assert!(script.contains("completion date of itemRef"));
+        assert!(script.contains(r#"to dos of list "Logbook""#));
         assert!(collection_script("areas").contains("repeat with itemRef in areas"));
         assert!(collection_script("projects").contains("repeat with itemRef in projects"));
     }
