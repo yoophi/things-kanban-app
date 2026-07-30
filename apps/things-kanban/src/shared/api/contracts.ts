@@ -1,4 +1,4 @@
-export type KanbanStatus = "todo" | "inProgress" | "done";
+export type KanbanStatus = "backlog" | "todo" | "inProgress" | "done";
 export type IntegrationErrorCode =
   | "things_not_installed"
   | "automation_denied"
@@ -40,6 +40,7 @@ export interface Todo {
   id: string;
   title: string;
   completionStatus: "open" | "completed" | "canceled";
+  isToday: boolean;
   dueDate?: string;
   scheduledDate?: string;
   completionDate?: string;

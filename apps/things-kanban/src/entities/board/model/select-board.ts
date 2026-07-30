@@ -67,6 +67,6 @@ export function boardCounts(todos: Todo[]) {
       counts[todo.status] += 1;
       return counts;
     },
-    { todo: 0, inProgress: 0, done: 0 },
+    { backlog: 0, todo: 0, inProgress: 0, done: 0 },
   );
 }

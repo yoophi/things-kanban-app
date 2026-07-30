@@ -1,4 +1,4 @@
 <!-- SPECKIT START -->
 현재 기능의 기술 선택, 프로젝트 구조, 검증 명령 및 구현 단계를 확인하려면
-`specs/003-normalize-status-tags/plan.md`를 읽는다.
+`specs/004-add-backlog-status/plan.md`를 읽는다.
 <!-- SPECKIT END -->

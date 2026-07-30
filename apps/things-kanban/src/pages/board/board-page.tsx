@@ -19,6 +19,7 @@ import { scopeLabel } from "@/entities/board/model/select-board";
 import type { KanbanStatus, Todo } from "@/shared/api/contracts";
 
 const columnLabels: Record<KanbanStatus, string> = {
+  backlog: "Backlog",
   todo: "To Do",
   inProgress: "In Progress",
   done: "Done",
@@ -132,31 +133,38 @@ export function BoardPage() {
                 move(todo, targetStatus);
             }}
           >
-            <div className="board three">
-              {(["todo", "inProgress", "done"] as const).map((status) => (
-                <BoardColumn
-                  key={status}
-                  title={
-                    status === "done"
-                      ? `${columnLabels.done} · 최근 30일`
-                      : columnLabels[status]
-                  }
-                  status={status}
-                  todos={snapshot.todos.filter(
-                    (todo) => todo.status === status,
-                  )}
-              pendingId={
-                transition.isPending ? transition.variables?.todo.id : undefined
-              }
-                  onMove={move}
-                  onOpen={(todo) => open.mutate({ id: todo.id, kind: "todo" })}
-                />
-              ))}
+            <div className="board four">
+              {(["backlog", "todo", "inProgress", "done"] as const).map(
+                (status) => (
+                  <BoardColumn
+                    key={status}
+                    title={
+                      status === "done"
+                        ? `${columnLabels.done} · 최근 30일`
+                        : columnLabels[status]
+                    }
+                    status={status}
+                    todos={snapshot.todos.filter(
+                      (todo) => todo.status === status,
+                    )}
+                    pendingId={
+                      transition.isPending
+                        ? transition.variables?.todo.id
+                        : undefined
+                    }
+                    onMove={move}
+                    onOpen={(todo) =>
+                      open.mutate({ id: todo.id, kind: "todo" })
+                    }
+                  />
+                ),
+              )}
             </div>
           </DragDropProvider>
         </section>
       </div>
       <footer className="status-bar">
+        <span>Backlog {counts.backlog}</span>
         <span>To Do {counts.todo}</span>
         <span>In Progress {counts.inProgress}</span>
         <span>Done {counts.done}</span>

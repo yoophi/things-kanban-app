@@ -4,6 +4,7 @@ test("loads, filters, and moves a card with the keyboard equivalent", async ({
   page,
 }) => {
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Backlog" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "To Do" })).toBeVisible();
   await page.getByPlaceholder("할 일 검색").fill("구조");
   await expect(

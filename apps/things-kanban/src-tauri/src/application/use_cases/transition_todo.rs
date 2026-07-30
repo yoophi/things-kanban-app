@@ -18,6 +18,9 @@ pub async fn execute(
         return Err(IntegrationError::InvalidRequest);
     }
     let before = repository.fetch_todo(&request.todo_id).await?;
+    if before.completion_status == CompletionStatus::Canceled {
+        return Err(IntegrationError::VerificationFailed);
+    }
     if before.status().status != request.previous_status {
         return Err(IntegrationError::VerificationFailed);
     }
@@ -26,7 +29,7 @@ pub async fn execute(
     match (request.previous_status, request.target_status) {
         (_, KanbanStatus::Done) => {
             let normalized = repository
-                .replace_status_tags(&request.todo_id, KanbanStatus::Todo)
+                .replace_status_tags(&request.todo_id, KanbanStatus::Done)
                 .await?;
             if normalized.has_in_progress_tag() {
                 return Err(IntegrationError::VerificationFailed);
@@ -62,12 +65,19 @@ fn matches_target(todo: &Todo, target: KanbanStatus) -> bool {
         KanbanStatus::Done => {
             todo.completion_status == CompletionStatus::Completed && !todo.has_in_progress_tag()
         }
+        KanbanStatus::Backlog => {
+            todo.completion_status == CompletionStatus::Open
+                && todo.has_only_canonical_status_tag(crate::domain::model::BACKLOG_TAG)
+                && todo.status().status == KanbanStatus::Backlog
+        }
         KanbanStatus::InProgress => {
             todo.completion_status == CompletionStatus::Open
                 && todo.has_only_canonical_in_progress_tag()
         }
         KanbanStatus::Todo => {
-            todo.completion_status == CompletionStatus::Open && !todo.has_in_progress_tag()
+            todo.completion_status == CompletionStatus::Open
+                && todo.has_only_canonical_status_tag(crate::domain::model::TODO_TAG)
+                && todo.status().status == KanbanStatus::Todo
         }
     }
 }
@@ -108,7 +118,7 @@ mod tests {
     fn todo_to_in_progress_writes_canonical_tag_and_preserves_user_tags() {
         let repository = Arc::new(TestRepository::new(todo_with_tags(
             CompletionStatus::Open,
-            &["important"],
+            &[crate::domain::model::TODO_TAG, "important"],
         )));
         let result = run(execute(
             repository.clone(),
@@ -173,7 +183,11 @@ mod tests {
 
     #[test]
     fn done_transitions_restore_open_state_with_normalized_tags() {
-        for target in [KanbanStatus::Todo, KanbanStatus::InProgress] {
+        for target in [
+            KanbanStatus::Backlog,
+            KanbanStatus::Todo,
+            KanbanStatus::InProgress,
+        ] {
             let repository = Arc::new(TestRepository::new(todo_with_tags(
                 CompletionStatus::Completed,
                 &[LEGACY_IN_PROGRESS_TAG, "important"],
@@ -193,5 +207,30 @@ mod tests {
                 assert!(!result.todo.todo.has_in_progress_tag());
             }
         }
+    }
+
+    #[test]
+    fn backlog_to_todo_replaces_tag_and_preserves_user_tags() {
+        let repository = Arc::new(TestRepository::new(todo_with_tags(
+            CompletionStatus::Open,
+            &[crate::domain::model::BACKLOG_TAG, "important"],
+        )));
+        let result = run(execute(
+            repository.clone(),
+            request(KanbanStatus::Backlog, KanbanStatus::Todo),
+        ))
+        .unwrap();
+        assert_eq!(repository.calls(), ["fetch", "replace_tags", "fetch"]);
+        assert_eq!(result.todo.status, KanbanStatus::Todo);
+        assert!(result
+            .todo
+            .todo
+            .has_only_canonical_status_tag(crate::domain::model::TODO_TAG));
+        assert!(result
+            .todo
+            .todo
+            .tags
+            .iter()
+            .any(|tag| tag.name == "important"));
     }
 }

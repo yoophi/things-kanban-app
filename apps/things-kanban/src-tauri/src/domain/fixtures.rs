@@ -17,6 +17,7 @@ pub fn todo_with_tags(status: CompletionStatus, tags: &[&str]) -> Todo {
         id: ThingsId::new("todo").expect("fixture id"),
         title: "Fixture".into(),
         completion_status: status,
+        is_today: false,
         due_date: None,
         scheduled_date: None,
         completion_date: None,

@@ -4,8 +4,9 @@ export const todoFixture = (
   overrides: Partial<Todo> & Pick<Todo, "id" | "title">,
 ): Todo => ({
   completionStatus: "open",
+  isToday: false,
   tags: [],
-  status: "todo",
+  status: "backlog",
   statusConflict: false,
   ...overrides,
 });
@@ -15,6 +16,8 @@ export const boardFixture: BoardSnapshot = {
     todoFixture({
       id: "one",
       title: "앱 구조 검토",
+      isToday: true,
+      status: "todo",
       project: { id: "project", name: "Things Kanban", active: true },
       area: { id: "work", name: "Work", active: true },
       tags: [{ name: "planning" }],
