@@ -145,7 +145,9 @@ export function BoardPage() {
                   todos={snapshot.todos.filter(
                     (todo) => todo.status === status,
                   )}
-                  pendingId={transition.variables?.todo.id}
+              pendingId={
+                transition.isPending ? transition.variables?.todo.id : undefined
+              }
                   onMove={move}
                   onOpen={(todo) => open.mutate({ id: todo.id, kind: "todo" })}
                 />

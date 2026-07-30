@@ -21,6 +21,8 @@ pub trait ThingsRepository: Send + Sync {
         id: &ThingsId,
         target: KanbanStatus,
     ) -> Result<Todo, IntegrationError>;
+    /// Sets Things completion without altering unrelated tags or PARA metadata.
+    /// Implementations return the authoritative item read after the mutation.
     async fn set_completion(
         &self,
         id: &ThingsId,

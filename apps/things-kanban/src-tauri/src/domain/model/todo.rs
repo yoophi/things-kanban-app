@@ -1,6 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const IN_PROGRESS_TAG: &str = "in progress";
+pub const LEGACY_IN_PROGRESS_TAG: &str = "status:in-progress";
+pub const LEGACY_TODO_TAG: &str = "status:todo";
+
+pub fn is_status_tag(name: &str) -> bool {
+    matches!(
+        name,
+        IN_PROGRESS_TAG | LEGACY_IN_PROGRESS_TAG | LEGACY_TODO_TAG
+    )
+}
+
+pub fn is_in_progress_tag(name: &str) -> bool {
+    matches!(name, IN_PROGRESS_TAG | LEGACY_IN_PROGRESS_TAG)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ThingsId(String);
@@ -80,6 +95,20 @@ pub struct Todo {
 }
 
 impl Todo {
+    pub fn has_in_progress_tag(&self) -> bool {
+        self.tags
+            .iter()
+            .any(|tag| is_in_progress_tag(tag.name.as_str()))
+    }
+
+    pub fn has_only_canonical_in_progress_tag(&self) -> bool {
+        self.tags
+            .iter()
+            .filter(|tag| is_in_progress_tag(tag.name.as_str()))
+            .map(|tag| tag.name.as_str())
+            .eq([IN_PROGRESS_TAG])
+    }
+
     pub fn status(&self) -> StatusResolution {
         if self.completion_status == CompletionStatus::Completed {
             return StatusResolution {
@@ -92,10 +121,12 @@ impl Todo {
         let status_tags: Vec<String> = self
             .tags
             .iter()
-            .filter(|tag| matches!(tag.name.as_str(), "status:todo" | "status:in-progress"))
+            .filter(|tag| is_status_tag(tag.name.as_str()))
             .map(|tag| tag.name.clone())
             .collect();
-        let in_progress = status_tags.iter().any(|tag| tag == "status:in-progress");
+        let in_progress = status_tags
+            .iter()
+            .any(|tag| is_in_progress_tag(tag.as_str()));
         StatusResolution {
             status: if in_progress {
                 KanbanStatus::InProgress
@@ -152,5 +183,27 @@ mod tests {
         .status();
         assert_eq!(resolution.status, KanbanStatus::InProgress);
         assert!(resolution.conflict);
+    }
+
+    #[test]
+    fn canonical_and_legacy_tags_map_to_in_progress() {
+        for tag in [IN_PROGRESS_TAG, LEGACY_IN_PROGRESS_TAG] {
+            assert_eq!(
+                todo(CompletionStatus::Open, &[tag]).status().status,
+                KanbanStatus::InProgress
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_tag_is_distinct_from_legacy_and_duplicates() {
+        assert!(
+            todo(CompletionStatus::Open, &[IN_PROGRESS_TAG]).has_only_canonical_in_progress_tag()
+        );
+        assert!(!todo(
+            CompletionStatus::Open,
+            &[IN_PROGRESS_TAG, LEGACY_IN_PROGRESS_TAG]
+        )
+        .has_only_canonical_in_progress_tag());
     }
 }

@@ -54,7 +54,10 @@ export function TodoCard({
       )}
       <div className="tags" aria-label="태그">
         {todo.tags
-          .filter((tag) => !tag.name.startsWith("status:"))
+          .filter(
+            (tag) =>
+              tag.name !== "in progress" && !tag.name.startsWith("status:"),
+          )
           .slice(0, 3)
           .map((tag) => (
             <span key={tag.name}>{tag.name}</span>

@@ -14,6 +14,7 @@ fn logs_do_not_include_todo_notes() {
     let source = walk(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     assert!(!source.contains("tracing::info!(todo.title"));
     assert!(!source.contains("tracing::info!(todo.notes"));
+    assert!(!source.contains("tracing::info!(todo.tags"));
 }
 
 fn walk(root: &str) -> String {

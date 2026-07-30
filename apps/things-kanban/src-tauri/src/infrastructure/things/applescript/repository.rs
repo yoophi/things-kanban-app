@@ -4,8 +4,8 @@ use chrono::{Duration, Utc};
 use crate::domain::{
     error::IntegrationError,
     model::{
-        AreaRef, BoardQuery, BoardSnapshot, CompletionStatus, CompletionWindow, KanbanStatus,
-        ProjectRef, TagRef, ThingsId, Todo,
+        is_status_tag, AreaRef, BoardQuery, BoardSnapshot, CompletionStatus, CompletionWindow,
+        KanbanStatus, ProjectRef, TagRef, ThingsId, Todo, IN_PROGRESS_TAG,
     },
     ports::{ItemKind, ThingsRepository},
 };
@@ -13,6 +13,33 @@ use crate::domain::{
 use super::runner::{apple_string, run};
 
 pub struct AppleScriptThingsRepository;
+
+fn things_show_url(id: &ThingsId) -> String {
+    let encoded = id
+        .as_str()
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect::<String>();
+    format!("things:///show?id={encoded}")
+}
+
+fn normalized_status_tags(todo: &Todo, target: KanbanStatus) -> Vec<String> {
+    let mut tags: Vec<String> = todo
+        .tags
+        .iter()
+        .filter(|tag| !is_status_tag(tag.name.as_str()))
+        .map(|tag| tag.name.clone())
+        .collect();
+    if target == KanbanStatus::InProgress {
+        tags.push(IN_PROGRESS_TAG.into());
+    }
+    tags
+}
 
 fn read_script(id_filter: Option<&ThingsId>) -> String {
     let filter = id_filter
@@ -234,16 +261,7 @@ impl ThingsRepository for AppleScriptThingsRepository {
         target: KanbanStatus,
     ) -> Result<Todo, IntegrationError> {
         let current = self.fetch_todo(id).await?;
-        let mut tags: Vec<String> = current
-            .tags
-            .iter()
-            .filter(|tag| !matches!(tag.name.as_str(), "status:todo" | "status:in-progress"))
-            .map(|tag| tag.name.clone())
-            .collect();
-        if target == KanbanStatus::InProgress {
-            tags.push("status:in-progress".into());
-        }
-        let tags = apple_string(&tags.join(", "));
+        let tags = apple_string(&normalized_status_tags(&current, target).join(", "));
         let script = format!(
             r#"tell application "Things3"
 set targetTodo to first to do whose id is "{}"
