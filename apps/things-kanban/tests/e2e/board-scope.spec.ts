@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("filters the three-column board by area and project", async ({ page }) => {
+test("filters the four-column board by area and project", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Work", exact: true }).click();
   await expect(

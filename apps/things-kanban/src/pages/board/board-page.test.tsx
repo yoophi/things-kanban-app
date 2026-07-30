@@ -13,6 +13,9 @@ describe("BoardPage", () => {
         <BoardPage />
       </QueryClientProvider>,
     );
+    expect(
+      await screen.findByRole("heading", { name: "Backlog" }),
+    ).toBeVisible();
     expect(await screen.findByRole("heading", { name: "To Do" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeVisible();
     expect(

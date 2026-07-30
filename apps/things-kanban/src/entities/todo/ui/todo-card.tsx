@@ -56,7 +56,9 @@ export function TodoCard({
         {todo.tags
           .filter(
             (tag) =>
-              tag.name !== "in progress" && !tag.name.startsWith("status:"),
+              !["backlog", "today", "to do", "in progress"].includes(
+                tag.name,
+              ) && !tag.name.startsWith("status:"),
           )
           .slice(0, 3)
           .map((tag) => (

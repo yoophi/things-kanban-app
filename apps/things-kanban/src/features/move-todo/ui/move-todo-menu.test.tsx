@@ -9,6 +9,7 @@ describe("MoveTodoMenu", () => {
     const onMove = vi.fn();
     render(<MoveTodoMenu status="todo" disabled={false} onMove={onMove} />);
     const select = screen.getByRole("combobox", { name: "상태 이동" });
+    expect(screen.getByRole("option", { name: "Backlog" })).toBeVisible();
     await user.selectOptions(select, "inProgress");
     expect(onMove).toHaveBeenCalledWith("inProgress");
   });

@@ -40,7 +40,8 @@ describe("selectBoard", () => {
     const selected = selectBoard(snapshot, { ...query, sort: "title" });
     expect(selected.todos.map((todo) => todo.title)).toEqual(["가", "나"]);
     expect(boardCounts(selected.todos)).toEqual({
-      todo: 1,
+      backlog: 1,
+      todo: 0,
       inProgress: 1,
       done: 0,
     });

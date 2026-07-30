@@ -9,7 +9,7 @@ use crate::domain::{
     error::IntegrationError,
     model::{
         is_status_tag, BoardQuery, BoardSnapshot, CompletionStatus, CompletionWindow, KanbanStatus,
-        TagRef, ThingsId, Todo, IN_PROGRESS_TAG,
+        TagRef, ThingsId, Todo, BACKLOG_TAG, IN_PROGRESS_TAG, TODO_TAG,
     },
     ports::{ItemKind, ThingsRepository},
 };
@@ -82,10 +82,16 @@ impl ThingsRepository for TestRepository {
         self.record("replace_tags")?;
         let mut todo = self.current.lock().expect("todo lock");
         todo.tags.retain(|tag| !is_status_tag(&tag.name));
-        if target == KanbanStatus::InProgress {
+        let target_tag = match target {
+            KanbanStatus::Backlog => Some(BACKLOG_TAG),
+            KanbanStatus::Todo => Some(TODO_TAG),
+            KanbanStatus::InProgress => Some(IN_PROGRESS_TAG),
+            KanbanStatus::Done => None,
+        };
+        if let Some(name) = target_tag {
             todo.tags.push(TagRef {
                 id: None,
-                name: IN_PROGRESS_TAG.into(),
+                name: name.into(),
             });
         }
         Ok(todo.clone())

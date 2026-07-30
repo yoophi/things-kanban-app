@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const BACKLOG_TAG: &str = "backlog";
+pub const TODO_TAG: &str = "to do";
+pub const TODAY_TAG: &str = "today";
 pub const IN_PROGRESS_TAG: &str = "in progress";
 pub const LEGACY_IN_PROGRESS_TAG: &str = "status:in-progress";
 pub const LEGACY_TODO_TAG: &str = "status:todo";
@@ -8,12 +11,21 @@ pub const LEGACY_TODO_TAG: &str = "status:todo";
 pub fn is_status_tag(name: &str) -> bool {
     matches!(
         name,
-        IN_PROGRESS_TAG | LEGACY_IN_PROGRESS_TAG | LEGACY_TODO_TAG
+        BACKLOG_TAG
+            | TODO_TAG
+            | TODAY_TAG
+            | IN_PROGRESS_TAG
+            | LEGACY_IN_PROGRESS_TAG
+            | LEGACY_TODO_TAG
     )
 }
 
 pub fn is_in_progress_tag(name: &str) -> bool {
     matches!(name, IN_PROGRESS_TAG | LEGACY_IN_PROGRESS_TAG)
+}
+
+pub fn is_todo_tag(name: &str) -> bool {
+    matches!(name, TODO_TAG | TODAY_TAG | LEGACY_TODO_TAG)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -66,6 +78,7 @@ pub enum CompletionStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum KanbanStatus {
+    Backlog,
     Todo,
     InProgress,
     Done,
@@ -85,6 +98,7 @@ pub struct Todo {
     pub id: ThingsId,
     pub title: String,
     pub completion_status: CompletionStatus,
+    pub is_today: bool,
     pub due_date: Option<DateTime<Utc>>,
     pub scheduled_date: Option<DateTime<Utc>>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -109,6 +123,14 @@ impl Todo {
             .eq([IN_PROGRESS_TAG])
     }
 
+    pub fn has_only_canonical_status_tag(&self, expected: &str) -> bool {
+        self.tags
+            .iter()
+            .filter(|tag| is_status_tag(tag.name.as_str()))
+            .map(|tag| tag.name.as_str())
+            .eq([expected])
+    }
+
     pub fn status(&self) -> StatusResolution {
         if self.completion_status == CompletionStatus::Completed {
             return StatusResolution {
@@ -127,13 +149,22 @@ impl Todo {
         let in_progress = status_tags
             .iter()
             .any(|tag| is_in_progress_tag(tag.as_str()));
+        let backlog = status_tags.iter().any(|tag| tag == BACKLOG_TAG);
+        let todo_tag = status_tags.iter().any(|tag| is_todo_tag(tag.as_str()));
+        let todo = self.is_today || todo_tag;
+        let conflicting_tag_count =
+            usize::from(in_progress) + usize::from(backlog) + usize::from(todo_tag);
         StatusResolution {
             status: if in_progress {
                 KanbanStatus::InProgress
-            } else {
+            } else if backlog {
+                KanbanStatus::Backlog
+            } else if todo {
                 KanbanStatus::Todo
+            } else {
+                KanbanStatus::Backlog
             },
-            conflict: status_tags.len() > 1,
+            conflict: conflicting_tag_count > 1,
             status_tags,
         }
     }
@@ -148,6 +179,7 @@ mod tests {
             id: ThingsId::new("id").unwrap(),
             title: "test".into(),
             completion_status: status,
+            is_today: false,
             due_date: None,
             scheduled_date: None,
             completion_date: None,
@@ -193,6 +225,62 @@ mod tests {
                 KanbanStatus::InProgress
             );
         }
+    }
+
+    #[test]
+    fn in_progress_tag_has_priority_regardless_of_today_membership() {
+        for is_today in [true, false] {
+            let mut item = todo(CompletionStatus::Open, &[IN_PROGRESS_TAG]);
+            item.is_today = is_today;
+            let resolution = item.status();
+            assert_eq!(
+                resolution.status,
+                KanbanStatus::InProgress,
+                "is_today={is_today} must not override the in progress tag"
+            );
+            assert!(
+                !resolution.conflict,
+                "is_today={is_today} is not a conflicting status tag"
+            );
+        }
+    }
+
+    #[test]
+    fn resolves_four_states_in_priority_order() {
+        assert_eq!(
+            todo(CompletionStatus::Open, &[]).status().status,
+            KanbanStatus::Backlog
+        );
+        assert_eq!(
+            todo(CompletionStatus::Open, &[TODO_TAG]).status().status,
+            KanbanStatus::Todo
+        );
+        assert_eq!(
+            todo(CompletionStatus::Open, &[BACKLOG_TAG, TODO_TAG])
+                .status()
+                .status,
+            KanbanStatus::Backlog
+        );
+        assert_eq!(
+            todo(CompletionStatus::Open, &[BACKLOG_TAG, IN_PROGRESS_TAG])
+                .status()
+                .status,
+            KanbanStatus::InProgress
+        );
+    }
+
+    #[test]
+    fn today_membership_maps_to_todo_unless_explicitly_backlogged() {
+        let mut item = todo(CompletionStatus::Open, &[]);
+        item.is_today = true;
+        assert_eq!(item.status().status, KanbanStatus::Todo);
+        item.tags.push(TagRef {
+            id: None,
+            name: BACKLOG_TAG.into(),
+        });
+        let resolution = item.status();
+        assert_eq!(resolution.status, KanbanStatus::Backlog);
+        assert!(!resolution.conflict);
     }
 
     #[test]

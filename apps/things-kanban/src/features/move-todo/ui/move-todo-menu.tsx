@@ -1,6 +1,7 @@
 import type { KanbanStatus } from "@/shared/api/contracts";
 
 const labels: Record<KanbanStatus, string> = {
+  backlog: "Backlog",
   todo: "To Do",
   inProgress: "In Progress",
   done: "Done",

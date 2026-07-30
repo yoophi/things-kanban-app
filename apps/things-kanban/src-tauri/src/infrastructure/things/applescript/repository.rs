@@ -6,7 +6,7 @@ use crate::domain::{
     error::IntegrationError,
     model::{
         is_status_tag, AreaRef, BoardQuery, BoardSnapshot, CompletionStatus, CompletionWindow,
-        KanbanStatus, ProjectRef, TagRef, ThingsId, Todo, IN_PROGRESS_TAG,
+        KanbanStatus, ProjectRef, TagRef, ThingsId, Todo, BACKLOG_TAG, IN_PROGRESS_TAG, TODO_TAG,
     },
     ports::{ItemKind, ThingsRepository},
 };
@@ -36,8 +36,14 @@ fn normalized_status_tags(todo: &Todo, target: KanbanStatus) -> Vec<String> {
         .filter(|tag| !is_status_tag(tag.name.as_str()))
         .map(|tag| tag.name.clone())
         .collect();
-    if target == KanbanStatus::InProgress {
-        tags.push(IN_PROGRESS_TAG.into());
+    let target_tag = match target {
+        KanbanStatus::Backlog => Some(BACKLOG_TAG),
+        KanbanStatus::Todo => Some(TODO_TAG),
+        KanbanStatus::InProgress => Some(IN_PROGRESS_TAG),
+        KanbanStatus::Done => None,
+    };
+    if let Some(tag) = target_tag {
+        tags.push(tag.into());
     }
     tags
 }
@@ -73,6 +79,7 @@ set AppleScript's text item delimiters to ASCII character 31
 tell application "Things3"
   set outputRows to {{}}
   set sourceTodos to {source_todos}
+  set todayTodoIds to id of to dos of list "Today"
   repeat with itemRef in sourceTodos
     set itemStatus to status of itemRef as text
     set projectId to ""
@@ -93,7 +100,8 @@ tell application "Things3"
     try
       set completionDateText to my isoDate(completion date of itemRef)
     end try
-    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef) & (ASCII character 30) & itemStatus & (ASCII character 30) & (tag names of itemRef) & (ASCII character 30) & projectId & (ASCII character 30) & projectName & (ASCII character 30) & areaId & (ASCII character 30) & areaName & (ASCII character 30) & completionDateText
+    set itemIsToday to ((id of itemRef) is in todayTodoIds)
+    set end of outputRows to (id of itemRef) & (ASCII character 30) & (name of itemRef) & (ASCII character 30) & itemStatus & (ASCII character 30) & (tag names of itemRef) & (ASCII character 30) & projectId & (ASCII character 30) & projectName & (ASCII character 30) & areaId & (ASCII character 30) & areaName & (ASCII character 30) & completionDateText & (ASCII character 30) & itemIsToday
   end repeat
 end tell
 set joined to outputRows as text
@@ -107,7 +115,7 @@ fn parse_todos(output: &str) -> Vec<Todo> {
         .split('\u{1f}')
         .filter_map(|row| {
             let fields: Vec<&str> = row.split('\u{1e}').collect();
-            if fields.len() < 9 {
+            if fields.len() < 10 {
                 return None;
             }
             let id = ThingsId::new(fields[0])?;
@@ -130,6 +138,7 @@ fn parse_todos(output: &str) -> Vec<Todo> {
                     "canceled" => CompletionStatus::Canceled,
                     _ => CompletionStatus::Open,
                 },
+                is_today: fields[9] == "true",
                 due_date: None,
                 scheduled_date: None,
                 completion_date: chrono::DateTime::parse_from_rfc3339(fields[8])
@@ -320,16 +329,17 @@ mod tests {
 
     #[test]
     fn parses_public_text_ids_and_preserves_tags() {
-        let output = "abc\u{1e}Task\u{1e}open\u{1e}Home, status:in-progress\u{1e}p1\u{1e}Project\u{1e}a1\u{1e}Area\u{1e}";
+        let output = "abc\u{1e}Task\u{1e}open\u{1e}Home, status:in-progress\u{1e}p1\u{1e}Project\u{1e}a1\u{1e}Area\u{1e}\u{1e}true";
         let todos = parse_todos(output);
         assert_eq!(todos[0].id.as_str(), "abc");
         assert_eq!(todos[0].tags.len(), 2);
+        assert!(todos[0].is_today);
         assert_eq!(todos[0].status().status, KanbanStatus::InProgress);
     }
 
     #[test]
     fn parses_iso_completion_date_and_active_collections() {
-        let output = "abc\u{1e}Done\u{1e}completed\u{1e}\u{1e}\u{1e}\u{1e}a1\u{1e}Area\u{1e}2026-07-29T03:00:00Z";
+        let output = "abc\u{1e}Done\u{1e}completed\u{1e}\u{1e}\u{1e}\u{1e}a1\u{1e}Area\u{1e}2026-07-29T03:00:00Z\u{1e}false";
         let todos = parse_todos(output);
         assert!(todos[0].completion_date.is_some());
         assert!(parse_areas("a1\u{1e}Area")[0].active);
@@ -348,6 +358,8 @@ mod tests {
     fn read_contract_uses_public_collections_and_iso_dates() {
         let script = read_script(None);
         assert!(script.contains("completion date of itemRef"));
+        assert!(script.contains(r#"to dos of list "Today""#));
+        assert!(script.contains("itemIsToday"));
         assert!(script.contains(r#"to dos of list "Logbook""#));
         assert!(collection_script("areas").contains("repeat with itemRef in areas"));
         assert!(collection_script("projects").contains("repeat with itemRef in projects"));
@@ -386,7 +398,11 @@ mod tests {
         );
         assert_eq!(
             normalized_status_tags(&todo, KanbanStatus::Todo),
-            ["first", "second"]
+            ["first", "second", "to do"]
+        );
+        assert_eq!(
+            normalized_status_tags(&todo, KanbanStatus::Backlog),
+            ["first", "second", "backlog"]
         );
     }
 
