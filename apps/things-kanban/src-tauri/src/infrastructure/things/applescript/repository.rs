@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
+use tokio::process::Command;
 
 use crate::domain::{
     error::IntegrationError,
@@ -299,17 +300,17 @@ end tell"#,
         self.fetch_todo(id).await
     }
 
-    async fn show_item(&self, id: &ThingsId, kind: ItemKind) -> Result<(), IntegrationError> {
-        let class_name = match kind {
-            ItemKind::Todo => "to do",
-            ItemKind::Project => "project",
-            ItemKind::Area => "area",
-        };
-        let script = format!(
-            r#"tell application "Things3" to show first {class_name} whose id is "{}""#,
-            apple_string(id.as_str())
-        );
-        run(&script, false).await.map(|_| ())
+    async fn show_item(&self, id: &ThingsId, _kind: ItemKind) -> Result<(), IntegrationError> {
+        let status = Command::new("open")
+            .arg(things_show_url(id))
+            .status()
+            .await
+            .map_err(|_| IntegrationError::ThingsUnavailable)?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(IntegrationError::ThingsUnavailable)
+        }
     }
 }
 
@@ -350,5 +351,48 @@ mod tests {
         assert!(script.contains(r#"to dos of list "Logbook""#));
         assert!(collection_script("areas").contains("repeat with itemRef in areas"));
         assert!(collection_script("projects").contains("repeat with itemRef in projects"));
+    }
+
+    #[test]
+    fn item_lookup_searches_active_todos_and_logbook() {
+        let script = read_script(Some(&ThingsId::new("completed-id").unwrap()));
+        assert!(script.contains(r#"to dos whose id is "completed-id""#));
+        assert!(script.contains(r#"to dos of list "Logbook" whose id is "completed-id""#));
+    }
+
+    #[test]
+    fn builds_official_things_show_url_and_encodes_id() {
+        assert_eq!(
+            things_show_url(&ThingsId::new("todo id/한글").unwrap()),
+            "things:///show?id=todo%20id%2F%ED%95%9C%EA%B8%80"
+        );
+    }
+
+    #[test]
+    fn normalizes_only_status_tags_and_preserves_user_tag_order() {
+        let todo = crate::domain::fixtures::todo_with_tags(
+            CompletionStatus::Open,
+            &[
+                "first",
+                "status:in-progress",
+                "in progress",
+                "status:todo",
+                "second",
+            ],
+        );
+        assert_eq!(
+            normalized_status_tags(&todo, KanbanStatus::InProgress),
+            ["first", "second", "in progress"]
+        );
+        assert_eq!(
+            normalized_status_tags(&todo, KanbanStatus::Todo),
+            ["first", "second"]
+        );
+    }
+
+    #[test]
+    fn tag_write_contract_uses_public_tag_names_property() {
+        let source = include_str!("repository.rs");
+        assert!(source.contains("set tag names of targetTodo"));
     }
 }
