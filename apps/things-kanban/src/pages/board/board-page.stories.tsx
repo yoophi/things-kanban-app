@@ -18,3 +18,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Populated: Story = {};
+
+export const ThreeColumnsWithNavigation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Todo, In Progress, Done 열과 Area/Project 사이드바를 함께 표시합니다.",
+      },
+    },
+  },
+};

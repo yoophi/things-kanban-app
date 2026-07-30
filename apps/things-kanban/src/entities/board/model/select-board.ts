@@ -1,4 +1,5 @@
 import type { BoardQuery, BoardSnapshot, Todo } from "@/shared/api/contracts";
+import type { BoardScope } from "./board-scope";
 
 const normalized = (value: string) =>
   value.normalize("NFKC").trim().toLocaleLowerCase();
@@ -6,21 +7,12 @@ const normalized = (value: string) =>
 export function selectBoard(
   snapshot: BoardSnapshot,
   query: BoardQuery,
+  scope: BoardScope = { kind: "all" },
 ): BoardSnapshot {
   const search = normalized(query.search);
   const todos = snapshot.todos
-    .filter((todo) => query.showDone || todo.status !== "done")
+    .filter((todo) => matchesScope(todo, scope))
     .filter((todo) => !search || normalized(todo.title).includes(search))
-    .filter(
-      (todo) =>
-        !query.projectIds.length ||
-        (todo.project && query.projectIds.includes(todo.project.id)),
-    )
-    .filter(
-      (todo) =>
-        !query.areaIds.length ||
-        (todo.area && query.areaIds.includes(todo.area.id)),
-    )
     .filter(
       (todo) =>
         !query.tagNames.length ||
@@ -30,6 +22,35 @@ export function selectBoard(
     )
     .sort(comparator(query.sort));
   return { ...snapshot, todos };
+}
+
+function matchesScope(todo: Todo, scope: BoardScope) {
+  if (scope.kind === "all") return true;
+  if (scope.kind === "project") return todo.project?.id === scope.id;
+  return todo.area?.id === scope.id || todo.project?.area?.id === scope.id;
+}
+
+export function normalizeScope(
+  snapshot: BoardSnapshot,
+  scope: BoardScope,
+): BoardScope {
+  if (scope.kind === "all") return scope;
+  const exists =
+    scope.kind === "area"
+      ? snapshot.areas.some((area) => area.active && area.id === scope.id)
+      : snapshot.projects.some(
+          (project) => project.active && project.id === scope.id,
+        );
+  return exists ? scope : { kind: "all" };
+}
+
+export function scopeLabel(snapshot: BoardSnapshot, scope: BoardScope) {
+  if (scope.kind === "all") return "전체 보기";
+  const item =
+    scope.kind === "area"
+      ? snapshot.areas.find((area) => area.id === scope.id)
+      : snapshot.projects.find((project) => project.id === scope.id);
+  return item?.name ?? "전체 보기";
 }
 
 function comparator(sort: BoardQuery["sort"]) {

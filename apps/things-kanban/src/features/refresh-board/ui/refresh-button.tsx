@@ -8,7 +8,12 @@ export function RefreshButton({
   onRefresh: () => void;
 }) {
   return (
-    <button className="primary" onClick={onRefresh} disabled={pending} type="button">
+    <button
+      className="primary"
+      onClick={onRefresh}
+      disabled={pending}
+      type="button"
+    >
       <RefreshCw className={pending ? "spin" : ""} aria-hidden size={16} />
       {pending ? "동기화 중" : "새로고침"}
     </button>

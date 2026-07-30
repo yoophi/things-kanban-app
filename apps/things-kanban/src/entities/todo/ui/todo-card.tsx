@@ -37,15 +37,19 @@ export function TodoCard({
           상태 태그 충돌
         </p>
       )}
-      {(todo.project || todo.area) && (
-        <p className="context">
-          {todo.project?.name ?? todo.area?.name}
-        </p>
-      )}
+      <p className="context">
+        {todo.project
+          ? `${todo.project.name}${todo.project.area || todo.area ? ` · ${(todo.project.area ?? todo.area)?.name}` : ""}`
+          : todo.area
+            ? `${todo.area.name} · Area 직접`
+            : "소속 없음"}
+      </p>
       {(todo.dueDate || todo.scheduledDate) && (
         <p className="date">
           <CalendarDays aria-hidden size={14} />
-          {new Date(todo.dueDate ?? todo.scheduledDate!).toLocaleDateString("ko-KR")}
+          {new Date(todo.dueDate ?? todo.scheduledDate!).toLocaleDateString(
+            "ko-KR",
+          )}
         </p>
       )}
       <div className="tags" aria-label="태그">

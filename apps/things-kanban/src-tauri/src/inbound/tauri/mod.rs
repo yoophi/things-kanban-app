@@ -7,7 +7,9 @@ use crate::{
     application::{queries, use_cases},
     domain::{
         error::CommandError,
-        model::{BoardQuery, BoardSnapshot, StatusTransitionRequest, StatusTransitionResult, ThingsId},
+        model::{
+            BoardQuery, BoardSnapshot, StatusTransitionRequest, StatusTransitionResult, ThingsId,
+        },
         ports::{ItemKind, ThingsRepository},
     },
     infrastructure::{logging::safe_id, things::applescript::AppleScriptThingsRepository},
@@ -38,8 +40,7 @@ pub async fn get_board(
 }
 
 #[tauri::command]
-pub async fn get_integration_status(
-) -> queries::get_integration_status::IntegrationStatus {
+pub async fn get_integration_status() -> queries::get_integration_status::IntegrationStatus {
     queries::get_integration_status::execute().await
 }
 

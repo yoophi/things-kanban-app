@@ -1,11 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { boardKeys } from "@/entities/board/model";
 import { commands } from "@/shared/api/tauri";
-import type {
-  BoardSnapshot,
-  KanbanStatus,
-  Todo,
-} from "@/shared/api/contracts";
+import type { BoardSnapshot, KanbanStatus, Todo } from "@/shared/api/contracts";
 
 export function useTransitionTodo() {
   const queryClient = useQueryClient();
@@ -60,7 +56,6 @@ export function useTransitionTodo() {
         queryClient.setQueryData(key, snapshot),
       );
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: boardKeys.all }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: boardKeys.all }),
   });
 }
