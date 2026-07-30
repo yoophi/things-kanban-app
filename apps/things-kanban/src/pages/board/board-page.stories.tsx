@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { BoardPage } from "./board-page";
-import { QueryProvider } from "@/app/providers/query-provider";
+import { StoryProviders } from "@/shared/test/storybook-decorators";
 
 const meta: Meta<typeof BoardPage> = {
-  title: "Pages/Board",
+  title: "Pages/BoardPage",
   component: BoardPage,
   decorators: [
     (Story) => (
-      <QueryProvider>
+      <StoryProviders>
         <Story />
-      </QueryProvider>
+      </StoryProviders>
     ),
   ],
 };
@@ -19,12 +19,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Populated: Story = {};
 
-export const ThreeColumnsWithNavigation: Story = {
+export const FourColumnsWithNavigation: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Todo, In Progress, Done 열과 Area/Project 사이드바를 함께 표시합니다.",
+          "Backlog, Todo, In Progress, Done 열과 Area/Project 사이드바를 함께 표시합니다.",
       },
     },
   },

@@ -5,9 +5,16 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:1420",
   },
-  webServer: {
-    command: "pnpm dev",
-    url: "http://127.0.0.1:1420",
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      command: "pnpm dev",
+      url: "http://127.0.0.1:1420",
+      reuseExistingServer: true,
+    },
+    {
+      command: "pnpm storybook --ci",
+      url: "http://127.0.0.1:6006",
+      reuseExistingServer: true,
+    },
+  ],
 });
